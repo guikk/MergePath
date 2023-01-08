@@ -16,7 +16,7 @@ class ParallelMerger:
         self.B = array[mid+1:right+1]
         self.S = array
         self.startS = left
-        self.segmentLength = (len(self.A) + len(self.B)) // self.p
+        self.length = right - left + 1
 
     def compute(self) -> None:
         """
@@ -25,32 +25,34 @@ class ParallelMerger:
         • Compute the final result affecting the input array
         """
 
-        # TODO: Fix bug in diagonal choice, list items are being duplicated
-        if self.segmentLength < 2:
-            print(f"Merging {self.A} and {self.B} sequentially")
+        segmentLength = (self.length) // self.p
+
+        if segmentLength < 2:
+            # print(f"Merging {self.A} and {self.B} sequentially")
             mergeByLength(
                 self.S, self.startS,
                 self.A, 0,
                 self.B, 0,
-                len(self.A) + len(self.B)
+                self.length
             )
-            print(f"\tResult: {self.S[self.startS:self.startS+len(self.A)+len(self.B)]}")
+            # print(f"\tResult: {self.S[self.startS:self.startS + self.length]}")
             return
 
-        print(f"Merging {self.A} and {self.B} in {self.p} threads")
+        # print(f"Merging {self.A} and {self.B} in {self.p} threads")
         for i in range(self.p):
-            si = self.startS + i * self.segmentLength
-            ai, bi = self.findIntersection(i)
-            print(f"Thread {i} - (ai={ai},bi={bi}) - si={si}")
+            si = i * segmentLength
+            ai, bi = self.findDiagonalIntersection(si)
+            # print(f"Thread {i} - (ai={ai},bi={bi}) - si={si}")
             mergeByLength(
-                self.S, si,
+                self.S, self.startS + si,
                 self.A, ai,
                 self.B, bi,
-                self.segmentLength
+                segmentLength if i < self.p - 1 else self.length - si
             )
         
-        print(f"\tResult: {self.S[self.startS:self.startS+len(self.A)+len(self.B)]}")
+        # print(f"\tResult: {self.S[self.startS:self.startS+len(self.A)+len(self.B)]}")
 
+    # TODO: Maybe refactor this function inside `findDiagonalIntersection`
     def M(self, i: int, j: int) -> bool:
         """
         Compute merge matrix element\n
@@ -73,8 +75,6 @@ class ParallelMerger:
         Intuition for this problem can be found in Proposition 13 of the Merge Path paper (p.5).\n
         (How many elements from A and B have been already taken after i steps of merging the two arrays?)
         """
-        if i == 0:
-            return (0, 0)
 
         maxA = min(len(self.A), i)
         minA = max(i - len(self.B), 0)
