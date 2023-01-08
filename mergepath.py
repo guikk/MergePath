@@ -28,14 +28,13 @@ class ParallelMerger:
         # TODO: Fix bug in diagonal choice, list items are being duplicated
         if self.segmentLength < 2:
             print(f"Merging {self.A} and {self.B} sequentially")
-            print(f"Merging {self.A} and {self.B} sequentially")
             mergeByLength(
                 self.S, self.startS,
                 self.A, 0,
                 self.B, 0,
                 len(self.A) + len(self.B)
             )
-            print(f"\tResult: {self.S[self.startS:self.startS+len(self.A)+len(self.B)+1]}")
+            print(f"\tResult: {self.S[self.startS:self.startS+len(self.A)+len(self.B)]}")
             return
 
         print(f"Merging {self.A} and {self.B} in {self.p} threads")
@@ -50,48 +49,55 @@ class ParallelMerger:
                 self.segmentLength
             )
         
-        print(f"\tResult: {self.S[self.startS:self.startS+len(self.A)+len(self.B)+1]}")
+        print(f"\tResult: {self.S[self.startS:self.startS+len(self.A)+len(self.B)]}")
 
     def M(self, i: int, j: int) -> bool:
         """
-        Compute merge matrix element
-        • (i and j are 1-indexed)
+        Compute merge matrix element\n
+        • Mij <=> A[i] > B[j]\n
+        • When indexes are out of bounds the result is set 
+        to True or False depending on the position
         """
 
-        if i <= 0 or j > len(self.B):
-            return False # out of bounds up right
+        if i < 0 or j > len(self.B) - 1:
+            return False # out of bounds up or right
 
-        if j <= 0 or i > len(self.A):
-            return True # out of bounds down left
+        if j < 0 or i > len(self.A) - 1:
+            return True # out of bounds down or left
 
-        return self.A[i-1] > self.B[j-1]
+        return self.A[i] > self.B[j]
 
-    def findIntersection(self, diagonalIndex: int) -> Tuple[int,int]:
+    def findDiagonalIntersection(self, i: int) -> Tuple[int,int]:
         """
-        Compute point where the merge path crosses the ith diagonal
+        Compute point where the merge path crosses the ith cross diagonal of the merge matrix.
+        Intuition for this problem can be found in Proposition 13 of the Merge Path paper (p.5).\n
+        (How many elements from A and B have been already taken after i steps of merging the two arrays?)
         """
-
-        if diagonalIndex == 0:
+        if i == 0:
             return (0, 0)
 
-        diag = (diagonalIndex + 1) * self.segmentLength
-        atop = len(self.A) if diag > len(self.A) else diag
-        btop = diag - len(self.A) if diag > len(self.A) else 0
-        abottom = btop
+        maxA = min(len(self.A), i)
+        minA = max(i - len(self.B), 0)
 
-        while True:
-            offset = (atop - abottom) // 2
-            ai = atop - offset
-            bi = btop + offset
-            if self.M(ai,bi-1):
-                if not self.M(ai-1,bi):
-                    return (ai, bi)
-                else:
-                    atop = ai - 1
-                    btop = bi + 1
-            else:
-                abottom = ai + 1
+        while minA < maxA:
+            midA = minA + (maxA - minA) // 2
+            # ai + bi == i is invariant in the cross diagonal
+            ai, bi = midA, i - midA
 
+            if not self.M(ai, bi - 1):
+                # lower than intersection
+                minA = midA + 1
+                continue
+
+            if self.M(ai - 1, bi):
+                # higher than intersection
+                maxA = midA - 1
+                continue
+
+            minA, maxA = midA, midA # midA is the solution
+
+        return (minA, i - minA)
+        
 def parallelMerge(arr: List[int], l: int, m: int, r: int) -> None:
     pm = ParallelMerger(DEFAULT_THREADS, arr, l, m, r)
     pm.compute()
