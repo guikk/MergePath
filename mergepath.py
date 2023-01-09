@@ -1,4 +1,5 @@
 from typing import List, Tuple
+import dask
 from merge import mergeByLength
 
 DEFAULT_THREADS = 4
@@ -11,6 +12,7 @@ class ParallelMerger:
         self, threads: int, array: List[int],
         left: int, mid: int, right: int
     ) -> None:
+        self.tag = str((left,mid,right))
         self.p = threads
         self.A = array[left:mid+1]
         self.B = array[mid+1:right+1]
@@ -27,7 +29,7 @@ class ParallelMerger:
 
         segmentLength = (self.length) // self.p
 
-        if segmentLength < 2:
+        if segmentLength < self.p:
             # print(f"Merging {self.A} and {self.B} sequentially")
             mergeByLength(
                 self.S, self.startS,
@@ -38,18 +40,27 @@ class ParallelMerger:
             # print(f"\tResult: {self.S[self.startS:self.startS + self.length]}")
             return
 
-        # print(f"Merging {self.A} and {self.B} in {self.p} threads")
-        for i in range(self.p):
-            si = i * segmentLength
-            ai, bi = self.findDiagonalIntersection(si)
-            # print(f"Thread {i} - (ai={ai},bi={bi}) - si={si}")
+        # print(f"({self.tag}) Merging {self.A} and {self.B} in {self.p} threads")
+        @dask.delayed(nout=2)
+        def findDiagonalIntersection(i: int):
+            return self.findDiagonalIntersection(i)
+
+        @dask.delayed(nout=0)
+        def mergeSegment(si: int, ai: int, bi: int):
             mergeByLength(
                 self.S, self.startS + si,
                 self.A, ai,
                 self.B, bi,
                 segmentLength if i < self.p - 1 else self.length - si
             )
-        
+
+        results = []
+        for i in range(self.p):
+            si = i * segmentLength
+            ai, bi  = findDiagonalIntersection(si)
+            results.append(mergeSegment(si, ai, bi))
+
+        dask.compute(results)
         # print(f"\tResult: {self.S[self.startS:self.startS+len(self.A)+len(self.B)]}")
 
     # TODO: Maybe refactor this function inside `findDiagonalIntersection`
