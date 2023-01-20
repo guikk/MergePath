@@ -1,9 +1,10 @@
 from typing import List, Tuple
 import dask
 from merge import mergeByLength
+from time import time
 
 DEFAULT_THREADS = 4
-MIN_PAR_PROBLEM = 1000
+MIN_PAR_PROBLEM = 2 ** 10
 
 # TODO: Maybe refactor this function inside `findDiagonalIntersection`
 def mergeMatrix(A: List[int], B: List[int], i: int, j: int) -> bool:
@@ -72,19 +73,19 @@ def parallelMerge(arr: List[int], l: int, m: int, r: int) -> None:
     • Call delayed functions\n
     • Compute the final result affecting the input array
     """
+    @dask.delayed(nout=0)
+    def merge(si, ai, bi, l):
+        mergeByLength(S, si, A, ai, B, bi, l)
+
     segmentLength = (length) // p
 
-    tasks = []
-    for i in range(p):
-        si = i * segmentLength
-        ai, bi = findDiagonalIntersection(A, B, si)
-        tasks.append(
-            dask.delayed(mergeByLength, nout=0)(
-                S, startS + si, 
-                A, ai,
-                B, bi, 
+    def buildTasks():
+        for i in range(p):
+            si = i * segmentLength
+            ai, bi = findDiagonalIntersection(A, B, si)
+            yield merge(
+                startS + si, ai, bi, 
                 segmentLength if i < p - 1 else length - si
             )
-        )
 
-    dask.compute(tasks)
+    dask.compute(buildTasks())
