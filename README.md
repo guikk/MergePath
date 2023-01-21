@@ -38,13 +38,13 @@ Proceding to the parallel merge implementation, I needed to get down the core co
 
 - The merge matrix
 
-When merging to arrays `A` and `B`, the *merge matrix* is a representation of the element of the two arrays, where each row represents an element of `A` and each column represents an element of `B`. The element $ M_{ij} $ in the matrix is the numerical representation of $ A_i \gt B_j $. 
+When merging to arrays `A` and `B`, the *merge matrix* is a representation of the element of the two arrays, where each row represents an element of `A` and each column represents an element of `B`. The element $M_{ij}$ in the matrix is the numerical representation of $A_i \gt B_j$. 
 - The merge path
 
 The series of choices between elements of `A` and `B` when sequentially merging the two arrays are represented by the *merge path*. It can also be seen as the line above the 1s and below the 0s of the matrix. 
 - The cross-diagonal intersections
 
-Different from the other two, the importance of this concept to the algorithm is not obvious. Finding the intersection of the $ i $ th cross-diagonal of the matrix with the merge path is the same of finding the point where the merge path will be after $ i $ steps of merging `A` and `B`, as stated in `Lemma 8`. Maybe a more intuitive way of understanding this is thinking that the goal is to find how many elements of `A` and `B` have already been used after $ i $ steps.
+Different from the other two, the importance of this concept to the algorithm is not obvious. Finding the intersection of the $i$ th cross-diagonal of the matrix with the merge path is the same of finding the point where the merge path will be after $i$ steps of merging `A` and `B`, as stated in `Lemma 8`. Maybe a more intuitive way of understanding this is thinking that the goal is to find how many elements of `A` and `B` have already been used after $i$ steps.
 
 Although these three concepts are not explained right away in the paper, there are a series of propositions that lead up to them. Those propositions are used to prove the correctness of the work division in the merge algorithm with theorems and lemmas.
 
@@ -52,15 +52,15 @@ In practice, neither the merge path nor matrix are going to be actually computed
 
 Getting back to implementation, The algorithm is broken down in two parts: the main function that divides the work between the threads and the helper function to calculate the intersections. After translating the pseudocode to Python and trying to make sense out of the name of the variables they used, I stepped back and wrote the code again from scratch by organizing the code according to the expected behavior instead of mimicking the pseudocode from the paper.
 
-The idea of the main function is diving the work in $ p $ threads:
-- Divide the length of the result array by $ p $ to find the segment length
+The idea of the main function is diving the work in $p$ threads:
+- Divide the length of the result array by $p$ to find the segment length
 - Calculate the starting point on the result array -> i * segment length 
 - Find the intersection on the starting point
-- Merge sequentially $ segment Length $ elements into the result from starting point
+- Merge sequentially $segment Length$ elements into the result from starting point
 
 Now, for the intersection calculation, the pseudocode does a really bad job at showing it, but it's just making a binary search in the diagonal to find the point between a 1 and a 0, or above all 1s or below all zeros for the edge cases where there is only one type of them.
 
-After being done with the implementation, I had to use Dask to make the execution parallelizable, which was more or less straighforward. The main function just makes delayed calls for the intersection finding and merge functions. The only problem was that the merge function had no return value, and the $ p $ different calls to this function were independent from each other. The solution for this was retrieving the *Delayed* object from the function call and yielding it into an array that later could be passed as parameter to `dask.compute` in order to run the tasks in parallel. The task graph for one run of the main function is represented by the image below.
+After being done with the implementation, I had to use Dask to make the execution parallelizable, which was more or less straighforward. The main function just makes delayed calls for the intersection finding and merge functions. The only problem was that the merge function had no return value, and the $p$ different calls to this function were independent from each other. The solution for this was retrieving the *Delayed* object from the function call and yielding it into an array that later could be passed as parameter to `dask.compute` in order to run the tasks in parallel. The task graph for one run of the main function is represented by the image below.
 
 ![](graphs/mergepath_task_graph.png)
 
